@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student Performance Prediction System</title>
+<style>
+:root{--bg:#f4f4fa;--card:#fff;--ink:#1c1b33;--mut:#625f7c;--line:#dcdbee;--acc:#4338ca;--accbg:#e9e8fb;--ok:#15803d;--warn:#b45309;--bad:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12111f;--card:#1c1b30;--ink:#ecebfa;--mut:#a3a1c4;--line:#322f52;--acc:#a5a1ff;--accbg:#2a2750;--ok:#5fd18a;--warn:#f0b05a;--bad:#ff8a80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12111f;--card:#1c1b30;--ink:#ecebfa;--mut:#a3a1c4;--line:#322f52;--acc:#a5a1ff;--accbg:#2a2750;--ok:#5fd18a;--warn:#f0b05a;--bad:#ff8a80;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 14px 40px}
+h1{font:700 26px/1.2 Georgia,"Times New Roman",serif;margin:0 0 4px}
+h2{font:600 17px Georgia,serif;margin:0 0 12px}
+.sub{margin:0 0 18px;color:var(--mut)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.grid .card{margin-bottom:0}
+.f{margin-bottom:14px}
+.f div{display:flex;justify-content:space-between;font-size:13px;color:var(--mut)}
+.f b{color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.big{font:700 54px/1 Georgia,serif;color:var(--acc)}
+.big small{font-size:20px;color:var(--mut)}
+.pill{display:inline-block;padding:3px 12px;border-radius:99px;font-weight:600;font-size:13px;background:var(--accbg)}
+.Low{color:var(--ok)}.Medium{color:var(--warn)}.High{color:var(--bad)}
+.bar{display:flex;align-items:center;gap:8px;font-size:12.5px;margin:6px 0}
+.bar span:first-child{width:130px;color:var(--mut)}
+.bar i{display:block;height:9px;border-radius:5px;background:var(--acc)}
+ul{margin:6px 0 0;padding-left:18px}li{margin:4px 0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:13.5px}
+th,td{padding:6px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:12px;color:var(--mut)}
+code{font:12.5px Consolas,monospace;background:var(--accbg);padding:2px 6px;border-radius:4px}
+summary{cursor:pointer;font:600 17px Georgia,serif}
+summary:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.m{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:12px}
+.m div{background:var(--accbg);border-radius:8px;padding:8px 12px}.m b{display:block;font-size:19px}.m span{font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<h1>Student Performance Prediction System</h1>
+<p class="sub">A linear regression model, trained in your browser, predicts final marks from study habits.</p>
+
+<div class="grid">
+<section class="card"><h2>Student details</h2><div id="inputs"></div></section>
+<section class="card" aria-live="polite">
+<h2>Prediction</h2>
+<div class="big" id="pred"></div>
+<p style="margin:8px 0"><span class="pill" id="grade"></span> <span class="pill" id="status"></span> <b id="risk"></b></p>
+<h2 style="margin-top:14px;font-size:15px">What drives this score</h2><div id="contrib"></div>
+<h2 style="margin-top:14px;font-size:15px">How to improve</h2><ul id="tips"></ul>
+</section>
+</div>
+
+<section class="card" style="margin-top:14px">
+<h2>Model</h2>
+<p style="margin:0 0 6px"><code id="eq"></code></p>
+<div class="m" id="metrics"></div>
+</section>
+
+<section class="card">
+<details><summary>Training dataset (30 sample students)</summary>
+<div class="scroll" style="margin-top:10px"><table><thead><tr><th>#</th><th>Study h/day</th><th>Attendance</th><th>Previous</th><th>Assignments</th><th>Actual</th><th>Predicted</th><th>Set</th></tr></thead><tbody id="rows"></tbody></table></div>
+</details>
+</section>
+
+<section class="card">
+<h2>How it works</h2>
+<ul>
+<li>Each student is a record of 4 features (a list) with a final mark to learn from.</li>
+<li>The model finds weights so that predicted marks stay closest to actual marks (least squares).</li>
+<li>24 students are used for training and 6 for testing, so the accuracy shown is on unseen data.</li>
+<li>Risk: High below 40, Medium 40 to 54, Low 55 and above.</li>
+</ul>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const FEAT=[
+ {k:"hours",n:"Study hours per day",min:0,max:8,step:0.5,v:3,u:" h"},
+ {k:"att",n:"Attendance",min:40,max:100,step:1,v:85,u:"%"},
+ {k:"prev",n:"Previous exam marks",min:20,max:100,step:1,v:65,u:"%"},
+ {k:"asg",n:"Assignments completed",min:0,max:100,step:5,v:80,u:"%"}];
+
+// sample dataset (seeded, so it is the same every time)
+let seed=7;const rnd=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const data=[];
+for(let i=0;i<30;i++){
+ const hours=Math.round((0.5+rnd()*6.5)*2)/2, att=Math.round(50+rnd()*50), prev=Math.round(30+rnd()*65), asg=Math.round((30+rnd()*70)/5)*5;
+ const y=Math.round(clamp(8+0.38*prev+0.22*att+0.12*asg+3*hours+(rnd()-0.5)*10,0,100));
+ data.push({x:[hours,att,prev,asg],y});
+}
+const train=data.slice(0,24),test=data.slice(24);
+
+// least squares through the normal equations (Gaussian elimination)
+function fit(rows){
+ const n=5,A=Array.from({length:n},()=>Array(n+1).fill(0));
+ for(const r of rows){const v=[1,...r.x];for(let i=0;i<n;i++){for(let j=0;j<n;j++)A[i][j]+=v[i]*v[j];A[i][n]+=v[i]*r.y}}
+ for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[p][c]))p=r;[A[c],A[p]]=[A[p],A[c]];
+  for(let r=0;r<n;r++){if(r===c)continue;const f=A[r][c]/A[c][c];for(let j=c;j<=n;j++)A[r][j]-=f*A[c][j]}}
+ return A.map((r,i)=>r[n]/r[i]);
+}
+const W=fit(train);
+const raw=x=>W[0]+x.reduce((s,v,i)=>s+W[i+1]*v,0);
+const predict=x=>Math.round(clamp(raw(x),0,100)*10)/10;
+
+// accuracy on the 6 unseen test students
+const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+const my=mean(test.map(r=>r.y));
+const mae=mean(test.map(r=>Math.abs(raw(r.x)-r.y)));
+const r2=1-test.reduce((s,r)=>s+(r.y-raw(r.x))**2,0)/test.reduce((s,r)=>s+(r.y-my)**2,0);
+
+const grade=p=>p>=90?"A+":p>=80?"A":p>=70?"B":p>=60?"C":p>=40?"D":"F";
+const vals=()=>FEAT.map(f=>Number($("in_"+f.k).value));
+
+$("inputs").innerHTML=FEAT.map(f=>`<div class="f"><div><label for="in_${f.k}">${f.n}</label><b id="o_${f.k}"></b></div><input type="range" id="in_${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.v}"></div>`).join("");
+
+function render(){
+ const x=vals();FEAT.forEach((f,i)=>$("o_"+f.k).textContent=x[i]+f.u);
+ const p=predict(x);
+ $("pred").innerHTML=p.toFixed(1)+"<small> / 100</small>";
+ $("grade").textContent="Grade "+grade(p);
+ $("status").textContent=p>=40?"Likely to pass":"Likely to fail";
+ const risk=p<40?"High":p<55?"Medium":"Low";
+ $("risk").textContent=risk+" risk";$("risk").className=risk;
+ const c=x.map((v,i)=>W[i+1]*v),mx=Math.max(...c,1);
+ $("contrib").innerHTML=FEAT.map((f,i)=>`<div class="bar"><span>${f.n.split(" ").slice(0,2).join(" ")}</span><i style="width:${Math.max(2,c[i]/mx*100*0.55)}%"></i><span style="width:auto">${c[i].toFixed(1)}</span></div>`).join("");
+ const tips=[];
+ if(x[0]<8)tips.push([W[1]*Math.min(1,8-x[0]),"Study 1 more hour per day"]);
+ if(x[1]<100)tips.push([W[2]*(Math.min(100,x[1]+10)-x[1]),"Raise attendance by 10 points"]);
+ if(x[3]<100)tips.push([W[4]*(100-x[3]),"Complete all assignments"]);
+ const good=tips.filter(t=>t[0]>=0.5).sort((a,b)=>b[0]-a[0]).slice(0,3);
+ $("tips").innerHTML=good.length?good.map(t=>`<li>${t[1]}: about +${t[0].toFixed(1)} marks</li>`).join(""):"<li>Current habits are already strong. Keep the same routine.</li>";
+}
+FEAT.forEach(f=>$("in_"+f.k).oninput=render);
+
+$("eq").textContent=`Marks = ${W[0].toFixed(1)} + ${W[1].toFixed(2)}×hours + ${W[2].toFixed(2)}×attendance + ${W[3].toFixed(2)}×previous + ${W[4].toFixed(2)}×assignments`;
+$("metrics").innerHTML=[["Training students",train.length],["Test students",test.length],["Test accuracy (R²)",r2.toFixed(2)],["Average error",mae.toFixed(1)+" marks"]].map(([l,v])=>`<div><b>${v}</b><span>${l}</span></div>`).join("");
+$("rows").innerHTML=data.map((r,i)=>`<tr><td>${i+1}</td><td>${r.x[0]}</td><td>${r.x[1]}%</td><td>${r.x[2]}%</td><td>${r.x[3]}%</td><td>${r.y}</td><td>${predict(r.x).toFixed(1)}</td><td>${i<24?"Train":"Test"}</td></tr>`).join("");
+render();
+</script>
+</body>
+</html>
